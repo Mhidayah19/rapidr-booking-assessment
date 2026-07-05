@@ -1,4 +1,6 @@
 import { getDb } from './client';
+import { transition } from '@/domain/transition';
+import type { BookingStatus, TransitionErrorCode } from '@/domain/types';
 
 export const HOLD_MINUTES = 10;
 
@@ -95,4 +97,51 @@ async function findByIdempotencyKey(
     .maybeSingle();
   if (error) throw error;
   return data;
+}
+
+export type TransitionBookingError = TransitionErrorCode | 'BOOKING_NOT_FOUND' | 'CONFLICT';
+
+export type TransitionBookingResult =
+  | { ok: true; booking: BookingRow }
+  | { ok: false; code: TransitionBookingError };
+
+export async function transitionBooking(input: {
+  bookingId: string;
+  event: 'confirm' | 'cancel' | 'complete';
+}): Promise<TransitionBookingResult> {
+  const db = getDb();
+
+  const { data: row, error: readError } = await db
+    .from('bookings')
+    .select('*, slot:slots(starts_at, ends_at)')
+    .eq('id', input.bookingId)
+    .maybeSingle();
+  if (readError) throw readError;
+  if (!row) return { ok: false, code: 'BOOKING_NOT_FOUND' };
+
+  const decision = transition(
+    {
+      status: row.status as BookingStatus,
+      expiresAt: row.expires_at ? new Date(row.expires_at) : null,
+      slotStartsAt: new Date(row.slot.starts_at),
+      slotEndsAt: new Date(row.slot.ends_at),
+    },
+    input.event,
+    new Date(),
+  );
+  if (!decision.ok) return decision;
+
+  // Optimistic concurrency: only apply if the status is still what we decided
+  // from. A concurrent transition means zero rows match → CONFLICT.
+  const { data: updated, error: updateError } = await db
+    .from('bookings')
+    .update({ status: decision.next, updated_at: new Date().toISOString() })
+    .eq('id', input.bookingId)
+    .eq('status', row.status)
+    .select('*')
+    .maybeSingle();
+  if (updateError) throw updateError;
+  if (!updated) return { ok: false, code: 'CONFLICT' };
+
+  return { ok: true, booking: updated };
 }
