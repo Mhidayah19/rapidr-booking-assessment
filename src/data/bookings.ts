@@ -2,7 +2,7 @@ import { getDb } from './client';
 import { transition } from '@/domain/transition';
 import type { BookingStatus, TransitionErrorCode } from '@/domain/types';
 
-export const HOLD_MINUTES = 10;
+const HOLD_MINUTES = 10;
 
 export interface BookingRow {
   id: string;
@@ -15,7 +15,7 @@ export interface BookingRow {
   updated_at: string;
 }
 
-export type CreateBookingError = 'SLOT_TAKEN' | 'SLOT_NOT_FOUND' | 'SLOT_IN_PAST' | 'UNKNOWN_PATIENT';
+type CreateBookingError = 'SLOT_TAKEN' | 'SLOT_NOT_FOUND' | 'SLOT_IN_PAST' | 'UNKNOWN_PATIENT';
 
 export type CreateBookingResult =
   | { ok: true; booking: BookingRow; created: boolean }
@@ -99,7 +99,7 @@ async function findByIdempotencyKey(
   return data;
 }
 
-export type TransitionBookingError = TransitionErrorCode | 'BOOKING_NOT_FOUND' | 'CONFLICT';
+type TransitionBookingError = TransitionErrorCode | 'BOOKING_NOT_FOUND' | 'CONFLICT';
 
 export type TransitionBookingResult =
   | { ok: true; booking: BookingRow }

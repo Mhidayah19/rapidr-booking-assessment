@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,32 +44,42 @@ export function BookingPage() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [message, setMessage] = useState('');
+  // Bumped by actions (book/confirm/cancel) to re-run the load effect below.
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    fetch('/api/patients').then((r) => r.json()).then(({ patients }) => {
+    let active = true;
+    (async () => {
+      const [{ patients }, { doctors }] = await Promise.all([
+        fetch('/api/patients').then((r) => r.json()),
+        fetch('/api/doctors').then((r) => r.json()),
+      ]);
+      if (!active) return;
       setPatients(patients);
-      setPatientId(patients[0]?.id ?? '');
-    });
-    fetch('/api/doctors').then((r) => r.json()).then(({ doctors }) => {
+      setPatientId((current) => current || patients[0]?.id || '');
       setDoctors(doctors);
-      setDoctorId(doctors[0]?.id ?? '');
-    });
+      setDoctorId((current) => current || doctors[0]?.id || '');
+    })();
+    return () => { active = false; };
   }, []);
 
-  const refresh = useCallback(async () => {
-    if (doctorId) {
-      const { slots } = await (await fetch(`/api/doctors/${doctorId}/slots`)).json();
-      setSlots(slots);
-    }
-    if (patientId) {
-      const { bookings } = await (
-        await fetch('/api/bookings', { headers: { 'x-patient-id': patientId } })
-      ).json();
-      setBookings(bookings);
-    }
-  }, [doctorId, patientId]);
-
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    if (!doctorId && !patientId) return;
+    let active = true;
+    (async () => {
+      if (doctorId) {
+        const { slots } = await (await fetch(`/api/doctors/${doctorId}/slots`)).json();
+        if (active) setSlots(slots);
+      }
+      if (patientId) {
+        const { bookings } = await (
+          await fetch('/api/bookings', { headers: { 'x-patient-id': patientId } })
+        ).json();
+        if (active) setBookings(bookings);
+      }
+    })();
+    return () => { active = false; };
+  }, [doctorId, patientId, reloadKey]);
 
   async function book(slotId: string) {
     const res = await fetch('/api/bookings', {
@@ -79,14 +89,14 @@ export function BookingPage() {
     });
     const json = await res.json();
     setMessage(res.ok ? 'Slot held for 10 minutes — confirm below.' : `${json.error.code}: ${json.error.message}`);
-    await refresh();
+    setReloadKey((k) => k + 1);
   }
 
   async function act(bookingId: string, action: 'confirm' | 'cancel') {
     const res = await fetch(`/api/bookings/${bookingId}/${action}`, { method: 'POST' });
     const json = await res.json();
     setMessage(res.ok ? `Booking ${json.booking.status}.` : `${json.error.code}: ${json.error.message}`);
-    await refresh();
+    setReloadKey((k) => k + 1);
   }
 
   return (

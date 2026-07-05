@@ -1,12 +1,4 @@
-export const BOOKING_STATUSES = [
-  'pending',
-  'confirmed',
-  'cancelled',
-  'completed',
-  'expired',
-] as const;
-
-export type BookingStatus = (typeof BOOKING_STATUSES)[number];
+export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'expired';
 
 export type BookingEvent = 'confirm' | 'cancel' | 'complete' | 'expire';
 
