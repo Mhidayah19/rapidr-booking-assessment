@@ -192,7 +192,13 @@ All times are stored as `timestamptz` and displayed in `Asia/Singapore`.
 
 ## Deployment
 
-Live on **Vercel** (app) + **Supabase cloud** (Postgres, Singapore region). The committed `.env.local` points at *local* Supabase so `supabase start` gives a reproducible local run; the cloud credentials live in Vercel's environment (not committed), because the cloud `service_role` key grants full access to a live internet-facing database — unlike the harmless local demo key. The app reaches Supabase over its REST API, so the same booking/reap/insert logic runs unchanged in serverless.
+Live on **Vercel** (app) + **Supabase cloud** (Postgres, Singapore region). The app reaches Supabase over its REST API, so the same booking/reap/insert logic runs unchanged in serverless.
+
+**Env files (all committed, per the assessment's instructions — throwaway credentials only):**
+- `.env.local` / `.env.test` → *local* Supabase, so `supabase start` gives a reproducible local run. This is the default for `pnpm dev` and the tests.
+- `.env.production` → the *cloud* Supabase project (the one behind the live link). Next.js loads this for production builds; Vercel also has these set in its dashboard.
+
+Note: the cloud `service_role` key is a throwaway (the project is paused after review). Committing a live-database key is not something I'd do outside an assessment that explicitly asks for it — in production this key would live only in the deployment platform's secret store.
 
 ---
 
